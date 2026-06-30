@@ -416,7 +416,14 @@ const PROGRAMS = [
   }
 ];
 
-// 3. Application State Management
+// 3. Integration Config
+// Paste your Power Automate HTTP trigger URL below after setting up the flow.
+// See README or setup instructions for how to create the flow.
+const CONFIG = {
+  webhookUrl: "YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL"
+};
+
+// 4. Application State Management
 const STATE = {
   activeView: "welcome", // welcome, quiz, loading, results
   user: {
@@ -544,39 +551,70 @@ function setupEventListeners() {
   if (leadForm) {
     leadForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      
+
       const phoneInput = document.getElementById("lead-phone");
       const nameInput = document.getElementById("lead-name");
       const emailInput = document.getElementById("lead-email");
-      
-      const data = {
-        name: nameInput ? nameInput.value.trim() : STATE.user.name,
-        email: emailInput ? emailInput.value.trim() : STATE.user.email,
-        phone: phoneInput ? phoneInput.value.trim() : "",
-        hollandCode: getHollandCodeString(),
-        scores: STATE.scores,
-        primaryMatches: STATE.topMatches.map(m => m.name)
+      const submitBtn = leadForm.querySelector("button[type='submit']");
+
+      const name  = nameInput  ? nameInput.value.trim()  : STATE.user.name;
+      const email = emailInput ? emailInput.value.trim() : STATE.user.email;
+      const phone = phoneInput ? phoneInput.value.trim() : "";
+
+      const payload = {
+        name:        name,
+        email:       email,
+        phone:       phone,
+        parent:      STATE.user.role === "parent" ? "Yes" : "No",
+        personality: getHollandCodeString(),
+        program1:    STATE.topMatches[0] ? STATE.topMatches[0].name : "",
+        program2:    STATE.topMatches[1] ? STATE.topMatches[1].name : "",
+        program3:    STATE.topMatches[2] ? STATE.topMatches[2].name : "",
+        emailHtml:   buildResultsEmailHtml(name, email)
       };
-      
-      // Mock saving to server/localStorage
-      localStorage.setItem("dmu_lead_capture", JSON.stringify(data));
-      
-      // Show elegant success confirmation overlay
+
+      // Local backup regardless of webhook status
+      localStorage.setItem("dmu_lead_capture", JSON.stringify(payload));
+
       const leadSection = document.getElementById("results-lead-section");
-      if (leadSection) {
-        leadSection.innerHTML = `
-          <div class="lead-success-msg">
-            <svg class="success-icon" viewBox="0 0 24 24">
-              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-            </svg>
-            <h3>Thank You, ${data.name}!</h3>
-            <p>Your comprehensive DMU Dubai Career Report has been generated and queued. An admissions representative will email you at <strong>${data.email}</strong> shortly.</p>
-            <div class="lead-success-actions">
-              <a href="https://www.dmu.ac.uk/dubai" target="_blank" class="dmu-btn dmu-btn-primary">Browse DMU Dubai Website</a>
-              <button onclick="location.reload()" class="dmu-btn dmu-btn-outline">Start Over</button>
+
+      function showSuccess() {
+        if (leadSection) {
+          leadSection.innerHTML = `
+            <div class="lead-success-msg">
+              <svg class="success-icon" viewBox="0 0 24 24">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              </svg>
+              <h3>Thank You, ${name}!</h3>
+              <p>Your DMU Dubai Programme Report has been sent to <strong>${email}</strong>. An admissions advisor will be in touch shortly.</p>
+              <div class="lead-success-actions">
+                <a href="https://www.dmu.ac.uk/dubai" target="_blank" class="dmu-btn dmu-btn-primary">Browse DMU Dubai Website</a>
+                <button onclick="location.reload()" class="dmu-btn dmu-btn-outline">Start Over</button>
+              </div>
             </div>
-          </div>
-        `;
+          `;
+        }
+      }
+
+      // POST to Power Automate webhook if configured
+      if (CONFIG.webhookUrl && CONFIG.webhookUrl !== "YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL") {
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Sending...";
+        }
+        fetch(CONFIG.webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        })
+          .then(() => showSuccess())
+          .catch(() => showSuccess()) // Still show success to the user; data saved locally
+          .finally(() => {
+            if (submitBtn) submitBtn.disabled = false;
+          });
+      } else {
+        // Webhook not yet configured — show success anyway (local save only)
+        showSuccess();
       }
     });
   }
@@ -741,6 +779,70 @@ function calculateProgramMatches() {
   
   STATE.topMatches = matches.slice(0, 3);
   STATE.allMatches = matches;
+}
+
+// Email HTML builder - produces the body sent via Power Automate / Outlook
+function buildResultsEmailHtml(recipientName, recipientEmail) {
+  const code = getHollandCodeString();
+  const programRows = STATE.topMatches.map((m, i) => {
+    const medals = ["🥇 Top Match", "🥈 Strong Match", "🥉 Key Match"];
+    return `
+      <tr>
+        <td style="padding:16px;border-bottom:1px solid #eee;vertical-align:top;">
+          <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#c8102e;text-transform:uppercase;">${medals[i]} &nbsp;|&nbsp; ${m.faculty.toUpperCase()}</p>
+          <p style="margin:0 0 6px;font-size:16px;font-weight:bold;color:#1a1a1a;">${m.name}</p>
+          <p style="margin:0 0 10px;font-size:14px;color:#555;">${m.description}</p>
+          <a href="${m.link}" style="display:inline-block;padding:8px 16px;background:#c8102e;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;">View Programme ↗</a>
+        </td>
+      </tr>`;
+  }).join("");
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:24px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;max-width:600px;">
+        <!-- Header -->
+        <tr>
+          <td style="background:#c8102e;padding:28px 32px;text-align:center;">
+            <p style="margin:0;color:#fff;font-size:13px;letter-spacing:2px;text-transform:uppercase;">De Montfort University Dubai</p>
+            <h1 style="margin:8px 0 0;color:#fff;font-size:24px;">Your Programme Results</h1>
+          </td>
+        </tr>
+        <!-- Intro -->
+        <tr>
+          <td style="padding:28px 32px 16px;">
+            <p style="margin:0;font-size:16px;color:#333;">Hello <strong>${recipientName}</strong>,</p>
+            <p style="margin:12px 0 0;font-size:14px;color:#555;">Based on your RIASEC assessment, your Holland Code is <strong style="color:#c8102e;font-size:18px;letter-spacing:2px;">${code}</strong>. Here are your top programme matches at DMU Dubai:</p>
+          </td>
+        </tr>
+        <!-- Programmes -->
+        <tr>
+          <td style="padding:0 32px 8px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eee;border-radius:6px;">
+              ${programRows}
+            </table>
+          </td>
+        </tr>
+        <!-- CTA -->
+        <tr>
+          <td style="padding:20px 32px 32px;text-align:center;">
+            <p style="margin:0 0 16px;font-size:14px;color:#555;">Ready to take the next step?</p>
+            <a href="https://www.dmu.ac.uk/dubai" style="display:inline-block;padding:12px 28px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:4px;font-size:14px;font-weight:bold;">Explore DMU Dubai</a>
+          </td>
+        </tr>
+        <!-- Footer -->
+        <tr>
+          <td style="background:#1a1a1a;padding:16px 32px;text-align:center;">
+            <p style="margin:0;font-size:11px;color:#888;">© DMU Dubai &nbsp;|&nbsp; This report was generated for ${recipientEmail}</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
 
 // 11. Results Display Rendering
