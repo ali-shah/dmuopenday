@@ -417,10 +417,11 @@ const PROGRAMS = [
 ];
 
 // 3. Integration Config
-// Paste your Power Automate HTTP trigger URL below after setting up the flow.
-// See README or setup instructions for how to create the flow.
+// Paste your Google Apps Script Web App URL below after deployment.
+// Optional: set webhookToken and validate it in Apps Script to reduce spam submissions.
 const CONFIG = {
-  webhookUrl: "YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL"
+  webhookUrl: "https://script.google.com/macros/s/AKfycby_G_y7fl7pSY80MOkymmPpx9HeIqDOeGVub5trDhNVZJoeK3qNCdYHmMFUuw536qG6/exec",
+  webhookToken: ""
 };
 
 // 4. Application State Management
@@ -570,7 +571,8 @@ function setupEventListeners() {
         program1:    STATE.topMatches[0] ? STATE.topMatches[0].name : "",
         program2:    STATE.topMatches[1] ? STATE.topMatches[1].name : "",
         program3:    STATE.topMatches[2] ? STATE.topMatches[2].name : "",
-        emailHtml:   buildResultsEmailHtml(name, email)
+        emailHtml:   buildResultsEmailHtml(name, email),
+        token:       CONFIG.webhookToken || ""
       };
 
       // Local backup regardless of webhook status
@@ -596,14 +598,16 @@ function setupEventListeners() {
         }
       }
 
-      // POST to Power Automate webhook if configured
-      if (CONFIG.webhookUrl && CONFIG.webhookUrl !== "YOUR_POWER_AUTOMATE_HTTP_TRIGGER_URL") {
+      // POST to Google Apps Script webhook if configured
+      if (CONFIG.webhookUrl && CONFIG.webhookUrl !== "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL") {
         if (submitBtn) {
           submitBtn.disabled = true;
           submitBtn.textContent = "Sending...";
         }
         fetch(CONFIG.webhookUrl, {
           method: "POST",
+          mode: "no-cors",
+          keepalive: true,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         })
