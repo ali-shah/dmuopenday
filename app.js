@@ -8,7 +8,6 @@ const QUESTIONS = [
   // Realistic (R) - Doers
   { id: 1, text: "Repair or assemble electronic components, gadgets, or appliances.", category: "R" },
   { id: 2, text: "Build models, structures, or objects using physical tools and machinery.", category: "R" },
-  { id: 3, text: "Work outdoors, perform hands-on activities, or handle physical materials.", category: "R" },
   { id: 4, text: "Operate heavy machinery, specialized laboratory gear, or mechanical equipment.", category: "R" },
   { id: 5, text: "Draft blueprints, assemble prototypes, or solve hardware problems.", category: "R" },
 
@@ -17,26 +16,22 @@ const QUESTIONS = [
   { id: 7, text: "Analyze large datasets, identify patterns, and draw logical conclusions.", category: "I" },
   { id: 8, text: "Write computer programs, design algorithms, or develop database structures.", category: "I" },
   { id: 9, text: "Research scientific phenomena, biological systems, or human cognitive processes.", category: "I" },
-  { id: 10, text: "Conduct controlled laboratory research or examine forensic evidence.", category: "I" },
 
   // Artistic (A) - Creators
   { id: 11, text: "Create original visual arts, digital illustrations, or graphic designs.", category: "A" },
   { id: 12, text: "Write creative copy, advertising slogans, stories, or journalistic articles.", category: "A" },
   { id: 13, text: "Design promotional layouts, visual merchandise, or multimedia content.", category: "A" },
-  { id: 14, text: "Express thoughts and concepts through music, theater, drama, or fine arts.", category: "A" },
   { id: 15, text: "Develop novel concepts, aesthetic styles, or creative campaign ideas.", category: "A" },
 
   // Social (S) - Helpers
   { id: 16, text: "Listen to people's emotional struggles and help them resolve mental hurdles.", category: "S" },
   { id: 17, text: "Teach, coach, or explain academic subjects and technical skills to others.", category: "S" },
   { id: 18, text: "Provide medical, therapeutic, or counseling support to individuals in need.", category: "S" },
-  { id: 19, text: "Work in teams to coordinate community welfare, support networks, or charity events.", category: "S" },
   { id: 20, text: "Facilitate group discussions, counsel peers, or resolve interpersonal disputes.", category: "S" },
 
   // Enterprising (E) - Persuaders
   { id: 21, text: "Lead a high-performance team to execute a major project or launch a business.", category: "E" },
   { id: 22, text: "Pitch a commercial startup concept or negotiate a complex contract.", category: "E" },
-  { id: 23, text: "Persuade others to purchase a product, adopt an idea, or support a vision.", category: "E" },
   { id: 24, text: "Manage financial operations, project timelines, and operational strategies.", category: "E" },
   { id: 25, text: "Deliver persuasive presentations, speak in public, or represent an organization.", category: "E" },
 
@@ -45,11 +40,7 @@ const QUESTIONS = [
   { id: 27, text: "Balance financial statements, balance sheets, and detailed ledger books.", category: "C" },
   { id: 28, text: "Review complex compliance standards, tax reports, or auditing guidelines.", category: "C" },
   { id: 29, text: "Work systematically using clear checklists, detailed steps, and instructions.", category: "C" },
-  { id: 30, text: "Coordinate logistics, resource schedules, and structured project milestones.", category: "C" },
-
-  // Additional technology differentiation items
-  { id: 31, text: "Design and build mobile applications for Android or iOS, including testing and deployment.", category: "I" },
-  { id: 32, text: "Work with embedded systems and IoT devices, integrating sensors, microcontrollers, and firmware.", category: "R" }
+  { id: 30, text: "Coordinate logistics, resource schedules, and structured project milestones.", category: "C" }
 ];
 
 // Derived per-category score limits used by matching and chart rendering
@@ -715,16 +706,6 @@ function getHollandCodeString() {
 // 10. Vector Dot Product Matching Logic
 function calculateProgramMatches() {
   const scores = STATE.scores;
-  const mobileAppInterest = STATE.answers[31] || 3;
-  const embeddedIotInterest = STATE.answers[32] || 3;
-
-  // Convert specialty question responses (1-5) into focused program boosts.
-  // This keeps broad RIASEC matching while improving differentiation for tech pathways.
-  const specializationBoostBySlug = {
-    "bsc-software-engineering": (Math.max(0, mobileAppInterest - 3) * 2.5) + (Math.max(0, embeddedIotInterest - 3) * 3),
-    "bsc-computer-science": Math.max(0, mobileAppInterest - 3) * 1.25,
-    "beng-mechanical-engineering": Math.max(0, embeddedIotInterest - 3) * 1.25
-  };
   
   // Filter programs to only evaluate the user's selected study level of interest
   const filteredPrograms = PROGRAMS.filter(prog => prog.level === STATE.user.level);
@@ -747,11 +728,6 @@ function calculateProgramMatches() {
     let matchPercentage = 50;
     if (maxWeightProduct > minWeightProduct) {
       matchPercentage = 50 + Math.round(((dotProduct - minWeightProduct) / (maxWeightProduct - minWeightProduct)) * 49);
-    }
-
-    const specializationBoost = specializationBoostBySlug[prog.slug] || 0;
-    if (specializationBoost > 0) {
-      matchPercentage = Math.min(99, Math.round(matchPercentage + specializationBoost));
     }
     
     return {
